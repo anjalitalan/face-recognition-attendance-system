@@ -1,0 +1,33 @@
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Python Cache & Compiled Files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Operating System & IDE Files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Application Logs & Temporary Files
+*.log
+*.tmp
+scratch/
+
+# Generated Runtime Data & Model Files (Preserve folder structure via .gitkeep)
+Attendance/*.csv
+!Attendance/.gitkeep
+TrainingImage/*.jpg
+!TrainingImage/.gitkeep
+TrainingImageLabel/*.yml
+TrainingImageLabel/*.txt
+!TrainingImageLabel/.gitkeep
+StudentDetails/*_backup.csv
