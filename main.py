@@ -182,6 +182,29 @@ def student_id_exists(student_id, records=None):
             return True
     return False
 
+def getImagesAndLabels(path):
+    """ Loads face images and numeric label IDs from TrainingImage folder """
+    if not os.path.exists(path):
+        return [], []
+
+    imagePaths = [os.path.join(path, f) for f in os.listdir(path) if not f.isspace()]
+    faces = []
+    Ids = []
+
+    for imagePath in imagePaths:
+        try:
+            pilImage = Image.open(imagePath).convert('L')
+            imageNp = np.array(pilImage, 'uint8')
+            filename = os.path.split(imagePath)[-1]
+            ID = int(filename.split(".")[1])
+            faces.append(imageNp)
+            Ids.append(ID)
+        except Exception:
+            continue
+
+    return faces, Ids
+
+
 class AttendanceApp(ctk.CTk):
     """ Main Application Class for Face Recognition Attendance System """
 
@@ -434,6 +457,19 @@ class AttendanceApp(ctk.CTk):
         )
         btn_take_img.pack(side="left", padx=(0, 15))
 
+        btn_train_img = ctk.CTkButton(
+            reg_actions_bar,
+            text="Save Profile (Train)",
+            font=ctk.CTkFont(size=15, weight="bold"),
+            fg_color=COLOR_WHITE,
+            hover_color="#F3EFEA",
+            text_color=COLOR_TEXT_MAIN,
+            corner_radius=16,
+            height=44,
+            width=180,
+            command=self.psw
+        )
+        btn_train_img.pack(side="left")
 
         # PAGE 3: ATTENDANCE
         page_attend = ctk.CTkFrame(content_container, fg_color="transparent")
@@ -451,6 +487,19 @@ class AttendanceApp(ctk.CTk):
         self.lbl_attend_model_status = ctk.CTkLabel(attend_control_card, text="Model Status: Ready", font=ctk.CTkFont(size=14, weight="bold"), text_color=COLOR_TEXT_MUTED)
         self.lbl_attend_model_status.pack(side="left", padx=15, pady=15)
 
+        btn_track_img = ctk.CTkButton(
+            attend_control_card,
+            text="Start Attendance Camera",
+            font=ctk.CTkFont(size=15, weight="bold"),
+            fg_color=COLOR_BTN_DARK,
+            hover_color=COLOR_BTN_DARK_HOVER,
+            text_color=COLOR_WHITE,
+            corner_radius=16,
+            height=42,
+            width=210,
+            command=self.TrackImages
+        )
+        btn_track_img.pack(side="right", padx=20, pady=12)
 
         attend_table_card = ctk.CTkFrame(page_attend, fg_color=COLOR_WHITE, corner_radius=22)
         attend_table_card.pack(fill="both", expand=True)
@@ -778,6 +827,36 @@ class AttendanceApp(ctk.CTk):
         )
         btn_cancel.pack(side="left", padx=10)
 
+    def psw(self):
+        """ Prompts for admin password before training the face model """
+        assure_path_exists("TrainingImageLabel/")
+        password_file = os.path.join("TrainingImageLabel", "psd.txt")
+
+        if os.path.isfile(password_file):
+            with open(password_file, "r") as tf:
+                key = tf.read().strip()
+        else:
+            dialog = ctk.CTkInputDialog(text="Old password not found.\nEnter new password below:", title="Set Password")
+            new_pas = dialog.get_input()
+            if new_pas is None or new_pas.strip() == "":
+                mess.showwarning(title='Warning', message='Password not set! Please try again.')
+                return
+            else:
+                with open(password_file, "w") as tf:
+                    tf.write(new_pas)
+                mess.showinfo(title='Success', message='New password registered successfully!')
+                return
+
+        dialog = ctk.CTkInputDialog(text="Enter Password:", title="Password Required")
+        password = dialog.get_input()
+
+        if password == key:
+            self.TrainImages()
+        elif password is None:
+            pass
+        else:
+            mess.showerror(title='Wrong Password', message='You have entered wrong password')
+
     def TakeImages(self):
         """ Captures 100 face images using OpenCV webcam feed for student registration """
         if not check_haarcascadefile():
@@ -861,6 +940,152 @@ class AttendanceApp(ctk.CTk):
             self.load_student_records()
         else:
             self.message1.configure(text="No images captured.", text_color="#DC2626")
+
+    def TrainImages(self):
+        """ Trains LBPH face recognizer model on captured images """
+        if not check_haarcascadefile():
+            return
+        assure_path_exists("TrainingImageLabel/")
+        recognizer = cv2.face.LBPHFaceRecognizer_create()
+        faces, ID = getImagesAndLabels("TrainingImage")
+
+        if len(faces) == 0:
+            mess.showwarning(title='No Registrations', message='Please Register someone first!!!')
+            return
+
+        try:
+            recognizer.train(faces, np.array(ID))
+        except Exception:
+            mess.showwarning(title='No Registrations', message='Please Register someone first!!!')
+            return
+
+        model_path = os.path.join("TrainingImageLabel", "Trainner.yml")
+        recognizer.save(model_path)
+        res = "Profile Saved Successfully"
+        self.message1.configure(text=res, text_color="#059669")
+        self.update_all_counts()
+        self.update_model_status()
+        mess.showinfo(title='Success', message='Face recognition model trained successfully!')
+
+    def get_existing_today_ids(self, attendance_path):
+        """ Reads today's logged Student IDs to prevent duplicate attendance logs """
+        existing_ids = set()
+        if os.path.isfile(attendance_path):
+            with open(attendance_path, 'r', encoding='utf-8', errors='ignore') as csvFile1:
+                reader1 = csv.reader(csvFile1)
+                i = 0
+                for lines in reader1:
+                    i += 1
+                    if i > 1:
+                        non_empty = [c.strip() for c in lines if c.strip()]
+                        if len(non_empty) >= 1:
+                            s_id = normalize_student_id(non_empty[0])
+                            if s_id and s_id != "Id":
+                                existing_ids.add(s_id)
+        return existing_ids
+
+    def TrackImages(self):
+        """ Launches real-time video feed for facial recognition and logs attendance """
+        if not check_haarcascadefile():
+            return
+        assure_path_exists("Attendance/")
+        assure_path_exists("StudentDetails/")
+
+        recognizer = cv2.face.LBPHFaceRecognizer_create()
+        model_path = os.path.join("TrainingImageLabel", "Trainner.yml")
+        if os.path.isfile(model_path):
+            recognizer.read(model_path)
+        else:
+            mess.showwarning(title='Data Missing', message='Please click on Save Profile to reset data!!')
+            return
+
+        harcascadePath = "haarcascade_frontalface_default.xml"
+        faceCascade = cv2.CascadeClassifier(harcascadePath)
+
+        student_records = load_and_clean_student_details()
+        if not student_records:
+            mess.showerror(title='Details Missing', message='Student details are missing, please check!')
+            return
+
+        ts = time.time()
+        date_str = datetime.datetime.fromtimestamp(ts).strftime('%d-%m-%Y')
+        attendance_path = os.path.join("Attendance", f"Attendance_{date_str}.csv")
+
+        existing_today_ids = self.get_existing_today_ids(attendance_path)
+        session_recognized_ids = set()
+
+        cam = cv2.VideoCapture(0)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        col_names = ['Id', '', 'Name', '', 'Date', '', 'Time']
+
+        self.lbl_dash_camera.configure(text="Active")
+        self.lbl_attend_cam_status.configure(text="Camera: Tracking Active")
+
+        new_attendance_logged = False
+        already_marked_names = set()
+
+        while True:
+            ret, im = cam.read()
+            if not ret:
+                break
+            gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+            faces = faceCascade.detectMultiScale(gray, 1.2, 5)
+
+            for (x, y, w, h) in faces:
+                cv2.rectangle(im, (x, y), (x + w, y + h), (225, 0, 0), 2)
+                serial, conf = recognizer.predict(gray[y:y + h, x:x + w])
+
+                if conf < 50:
+                    ts_now = time.time()
+                    timeStamp = datetime.datetime.fromtimestamp(ts_now).strftime('%H:%M:%S')
+
+                    st = get_student_by_serial(serial, student_records)
+                    if st:
+                        id_val = st["student_id"]
+                        name_val = st["name"]
+                    else:
+                        id_val = "Unknown"
+                        name_val = "Unknown"
+
+                    bb = name_val
+
+                    if id_val != "Unknown":
+                        if id_val not in session_recognized_ids and id_val not in existing_today_ids:
+                            session_recognized_ids.add(id_val)
+                            existing_today_ids.add(id_val)
+
+                            record = [id_val, '', name_val, '', str(date_str), '', str(timeStamp)]
+                            file_exists = os.path.isfile(attendance_path)
+                            with open(attendance_path, 'a+', newline='', encoding='utf-8') as csvFile1:
+                                writer = csv.writer(csvFile1)
+                                if not file_exists:
+                                    writer.writerow(col_names)
+                                writer.writerow(record)
+
+                            new_attendance_logged = True
+                            self.after(0, self.refresh_attendance_table)
+
+                        elif id_val in existing_today_ids and name_val not in already_marked_names:
+                            already_marked_names.add(name_val)
+                else:
+                    bb = 'Unknown'
+
+                cv2.putText(im, str(bb), (x, y + h), font, 1, (255, 255, 255), 2)
+
+            cv2.imshow('Taking Attendance - Press Q to Stop', im)
+            if cv2.waitKey(1) == ord('q'):
+                break
+
+        cam.release()
+        cv2.destroyAllWindows()
+        self.lbl_dash_camera.configure(text="Standby")
+        self.lbl_attend_cam_status.configure(text="Camera: Standby")
+
+        self.after(0, self.refresh_attendance_table)
+
+        if already_marked_names and not new_attendance_logged:
+            marked_list = ", ".join(already_marked_names)
+            mess.showinfo(title='Attendance Info', message=f'Attendance already marked for {marked_list} today.')
 
 
 if __name__ == '__main__':
