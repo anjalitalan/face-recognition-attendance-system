@@ -20,22 +20,20 @@ from tkinter import ttk
 from tkinter import messagebox as mess
 import customtkinter as ctk
 
-# Configure CustomTkinter appearance
 ctk.set_appearance_mode("Light")
 ctk.set_default_color_theme("blue")
 
-# Design System Palette Tokens
-COLOR_MAIN_BG = "#F7F4EF"       # Soft off-white background
-COLOR_SIDEBAR_BG = "#EFE9E2"    # Warm beige sidebar
-COLOR_PANEL_BG = "#F1EBE5"      # Right panel background
-COLOR_CARD_PINK = "#F4BFC1"     # Soft pastel pink
-COLOR_CARD_PEACH = "#F8D8AD"    # Soft pastel peach
-COLOR_CARD_LAVENDER = "#CBC7F6" # Soft pastel lavender
-COLOR_CARD_MINT = "#BDEBD5"     # Soft pastel mint
-COLOR_WHITE = "#FFFDFC"         # Crisp white container surface
-COLOR_TEXT_MAIN = "#171717"     # Dark charcoal text
-COLOR_TEXT_MUTED = "#6F6A65"    # Subtle muted text
-COLOR_BTN_DARK = "#111111"      # Dark pill button
+COLOR_MAIN_BG = "#F7F4EF"
+COLOR_SIDEBAR_BG = "#EFE9E2"
+COLOR_PANEL_BG = "#F1EBE5"
+COLOR_CARD_PINK = "#F4BFC1"
+COLOR_CARD_PEACH = "#F8D8AD"
+COLOR_CARD_LAVENDER = "#CBC7F6"
+COLOR_CARD_MINT = "#BDEBD5"
+COLOR_WHITE = "#FFFDFC"
+COLOR_TEXT_MAIN = "#171717"
+COLOR_TEXT_MUTED = "#6F6A65"
+COLOR_BTN_DARK = "#111111"
 COLOR_BTN_DARK_HOVER = "#2A2A2A"
 
 def assure_path_exists(path):
@@ -112,7 +110,6 @@ def load_and_clean_student_details():
     if not records:
         return []
 
-    # Deduplicate by Student ID: Keep first occurrence of each Student ID
     seen_ids = set()
     unique_records = []
     has_duplicates = False
@@ -126,7 +123,6 @@ def load_and_clean_student_details():
             seen_ids.add(sid)
             unique_records.append(rec)
 
-    # Backup & Rewrite cleaned CSV to ensure master data integrity
     try:
         if not os.path.isfile(backup_path):
             with open(backup_path, 'w', newline='', encoding='utf-8') as b_file:
@@ -144,7 +140,6 @@ def load_and_clean_student_details():
     except Exception as e:
         print(f"[Error] Failed to process backup/clean CSV: {e}")
 
-    # Sort records by serial_no ascending
     unique_records.sort(key=lambda x: x["serial_no"])
     return unique_records
 
@@ -216,7 +211,6 @@ class AttendanceApp(ctk.CTk):
         self.configure(fg_color=COLOR_MAIN_BG)
         self.minsize(1150, 720)
 
-        # Master Grid Layout Configuration
         self.grid_columnconfigure(0, weight=0, minsize=220)
         self.grid_columnconfigure(1, weight=1)
         self.grid_columnconfigure(2, weight=0, minsize=300)
@@ -230,7 +224,6 @@ class AttendanceApp(ctk.CTk):
         self.build_right_panel()
         self.setup_styles()
 
-        # Initial Application State
         self.show_page("Dashboard")
         self.tick()
         self.update_all_counts()
@@ -644,7 +637,7 @@ class AttendanceApp(ctk.CTk):
         self.after(1000, self.tick)
 
     def refresh_attendance_table(self):
-        """ Thread-safe refresh function to synchronize attendance records """
+        """ Reloads today's attendance CSV into the attendance and dashboard tables """
         for k in self.attendance_tree.get_children():
             self.attendance_tree.delete(k)
         for k in self.dash_preview_tree.get_children():
@@ -870,7 +863,6 @@ class AttendanceApp(ctk.CTk):
             self.message1.configure(text="Please enter a valid Student ID!", text_color="#DC2626")
             return
 
-        # Pre-validation: Block duplicate Student ID registration
         records = load_and_clean_student_details()
         if student_id_exists(Id, records):
             err_msg = f"Student ID {Id} is already registered.\nPlease enter a unique Student ID."
