@@ -32,6 +32,7 @@ A modern, high-performance desktop application built with **Python**, **CustomTk
 ├── StudentDetails/                  # Student registration records (StudentDetails.csv)
 ├── TrainingImage/                   # Captured student facial training images
 ├── TrainingImageLabel/              # Trained LBPH model (Trainner.yml) and admin settings
+├── screenshots/                     # README screenshots
 ├── haarcascade_frontalface_default.xml # OpenCV Haar Cascade face detection classifier
 ├── main.py                          # Core CustomTkinter application entry point
 ├── requirements.txt                 # Project python dependencies
@@ -100,6 +101,12 @@ A modern, high-performance desktop application built with **Python**, **CustomTk
 ---
 
 ## Screenshots & UI Overview
+
+![Dashboard](screenshots/dashboard.png)
+
+![Register Student](screenshots/register.png)
+
+![Attendance](screenshots/attendance.png)
 
 | Navigation | Description |
 |---|---|
